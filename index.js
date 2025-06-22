@@ -139,12 +139,6 @@ writeFileSync(
   ),
 );
 
-/*
-${host.name}.json Native Messaging host manifest written to ${dirname}/${manifest.short_name}.json and ${
-    dirname.split("/").slice(0, 3).join("/")
-  }/.config/chromium/NativeMessagingHosts/${host.name}.json.`
-*/
-
 console.log(
   "\x1b[32m",
   `
