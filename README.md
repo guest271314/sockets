@@ -13,7 +13,7 @@ bun install
 ## Generate cryptographic keys for IWA
 
 ```
-deno -A -c import-map.json generateWebCryptoKeys.js
+deno -A --import-map deno.json generateWebCryptoKeys.js
 ```
 
 Write Signed Web Bundle, create Native Messaging host manifest for Node.js TCP
