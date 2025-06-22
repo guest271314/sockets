@@ -58,7 +58,7 @@ uses JSON-like format in Chromium browser.
 The JSON from IPC is written to WHATWG Streams to implement [WICG Direct Sockets](https://wicg.github.io/direct-sockets/)
 `TCPSocket` and `UDPSocket` interfaces.
 
-Not-implemented for `TCPSocket`: ip6 [...]
+Not implemented for `TCPSocketOptions`: `sendBufferSize`, `receiveBufferSize`, `dnsQueryType`.
 
 ## Usage
 
