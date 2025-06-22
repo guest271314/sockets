@@ -7,9 +7,16 @@
     "type": "git",
     "url": "https://github.com/guest271314/sockets"
   },
+  "homepage": "https://github.com/guest271314/sockets",
+  "bugs": {
+    "url": "https://github.com/guest271314/sockets/issues"
+  },
   "dependencies": {
     "wbn": "^0.0.9",
     "base32-encode": "^2.0.0",
     "mime": "^4.0.4"
-  }
+  },
+  "author": "guest271314",
+  "type": "esm",
+  "main": "index.js"
 }
