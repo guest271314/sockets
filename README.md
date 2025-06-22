@@ -23,7 +23,7 @@ configuration folder on Linux.
 Using network imports with Deno
 
 ```
-deno -A -c import-map.json index.js
+deno -A -c deno.json index.js
 ```
 
 ```
