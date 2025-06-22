@@ -1,0 +1,15 @@
+{
+  "name": "sockets",
+  "version": "0.1.0",
+  "description": "TCP and UDP sockets in the browser",
+  "license": "WTFPLv2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guest271314/sockets"
+  },
+  "dependencies": {
+    "wbn": "^0.0.9",
+    "base32-encode": "^2.0.0",
+    "mime": "^4.0.4"
+  }
+}

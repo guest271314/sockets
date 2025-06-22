@@ -1,0 +1,9 @@
+{
+  "name": "sockets",
+  "description": "TCP and UDP sockets",
+  "path": "/home/user/localscripts/sockets/sockets-web-extension/sockets.js",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://belbbfgjhflfkchiobcofdndlflfedpg/"
+  ]
+}

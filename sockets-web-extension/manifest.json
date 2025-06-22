@@ -1,0 +1,45 @@
+{
+  "name": "sockets",
+  "short_name": "sockets",
+  "version": "1.0",
+  "description": "TCP and UDP sockets",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "host_permissions": [
+    "<all_urls>",
+    "file:///*",
+    "*://*/*"
+  ],
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "windows",
+    "activeTab",
+    "scripting"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "extensions": []
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "*://*/*",
+      "isolated-app://*/*"
+    ],
+    "ids": [
+      "*"
+    ]
+  },
+  "action": {},
+  "homepage_url": "https://github.com/guest271314/sockets"
+}
