@@ -1,0 +1,6 @@
+{
+  "name": "@guest271314/sockets",
+  "version": "0.1.0",
+  "license": "WTFPLv2",
+  "exports": "./index.js"
+}
