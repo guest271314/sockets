@@ -183,7 +183,7 @@ promise
 UDP connection to local machine
 
 ```
-var socket = new DirectSocket("udp", "0.0.0.0", 8080);
+var socket = new DirectSocket("udp", "0.0.0.0", 10001);
 ```
 
 Close UDP connection
