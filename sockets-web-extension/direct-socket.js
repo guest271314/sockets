@@ -68,7 +68,7 @@ class DirectSocket {
     this.#port.onMessage.addListener(this.#handleDisconnect);
     this.#delay(() => {
       this.#port.postMessage({ socketType, remoteAddress, remotePort });
-    }, 100);
+    }, 200);
   }
   close() {
     this.#port.disconnect();
