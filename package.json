@@ -5,7 +5,7 @@
   "license": "WTFPLv2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/guest271314/sockets"
+    "url": "https://github.com/guest271314/sockets/tree/fetch-webrtc"
   },
   "homepage": "https://github.com/guest271314/sockets",
   "bugs": {

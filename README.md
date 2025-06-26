@@ -1,36 +1,93 @@
 # sockets
 TCP and UDP sockets in the browser using Web extension API's and Direct Sockets from an [Isolated Web App](https://github.com/WICG/isolated-web-apps/blob/main/README.md) (IWA).
 
+# Branch `fetch-webrtc` 
+
+Branch `fetch-webrtc` continues development of [telnet-client](https://github.com/guest271314/telnet-client) which is a fork of [GoogleChromeLabs/telnet-client](https://github.com/GoogleChromeLabs/telnet-client).
+
+`window.open("isolated-app://")` capability was blocked by iwa: [Mark isolated-app: as being handled by Chrome](https://chromium-review.googlesource.com/c/chromium/src/+/5466063). 
+
+[Query string parameters in isolated-app: URL disappear](https://issues.chromium.org/issues/426833112?pli=1) is marked as `
+Won't fix (Intended behavior)`. SDP is passed to a Web extension using query string parameters. That used to be possible with this alone
+
+```
+const window = await chrome.windows.create({
+  url: `${url}${detail}`,
+  height: 0,
+  width: 0,
+  left: 0,
+  top: 0,
+  focused: false,
+  type: "normal",
+});
+```
+
+where `detail` is `?sdp=...`. That approach is still possible by updating the URL after initial load
+
+```
+const tab = await chrome.tabs.update(window.tabs[0].id, {
+  url: `${url}${detail}`,
+});
+```
+
+Herein we use `TCPServerSocket` in the IWA and WHATWG `fetch()` in the arbitrary user determinined `window` to exchange WebRTC signals.
+
+TODO: 
+
+- Re-write Deno and Node.js TCP servers, include UDP server 
+- Full-duplex stream using WHATWG `fetch()` piped through `TCPSocket` and `UDPSocket`
+- Create Signed Web Bundle and Isolated Web App in the browser
+
 ## Install dependencies
 
 ```
 npm install
 ```
 
+or
+
 ```
 bun install
 ```
+
+or use Deno for network imports and source code caching, and generating cryptographic keys for IWA
+
+```
+deno -A -c deno.json generateWebCryptoKeys.js
+```
+
 ## Generate cryptographic keys for IWA
 
+
 ```
-deno -A --import-map deno.json generateWebCryptoKeys.js
+bun generateWebCryptoKeys.js
 ```
 
-Write Signed Web Bundle, create Native Messaging host manifest for Node.js TCP
-and UDP local server, and writes the Native Messaging host manifest to Chromium
-configuration folder on Linux.
+or
 
-Using network imports with Deno
+```
+node generateWebCryptoKeys.js
+```
+
+## Write Signed Web Bundle
+
 
 ```
 deno -A -c deno.json index.js
 ```
 
+or 
 ```
 node index.js
 ```
+or
 
-Load the Signed Web Bundle on the command line with
+```
+bun index.js
+```
+## Load the Signed Web Bundle 
+
+On command line
 
 ```
 ~/chrome-linux/chrome --no-startup-window \
@@ -40,156 +97,108 @@ Load the Signed Web Bundle on the command line with
 
 or select the `signed.swbn` file in `chrome://web-app-internals`.
 
-Load the unpacked extension folder `sockets-web-extension` in
-`chrome://extension`, or when launching `chrome` with
-`--load-extension=/home/user/sockets/sockets-web-extension`.
+## Installation of browser extension and Native Messaging host on Chrome and Chromium
 
-Set `sockets.js` to executable for launching the Node.js TCP and UDP server on
-the local machine in a Native Messaging host.
+1. Navigate to `chrome://extensions`.
+2. Toggle `Developer mode`.
+3. Click `Load unpacked`.
+4. Select `direct-sockets` folder.
+5. Note the generated extension ID.
+6. Open `nm_tcpsocket.json` in a text editor, set `"path"` to absolute path of [txiki.js](https://github.com/saghul/txiki.js) `txikijs_echo_tcp.js` or [Bun](https://github.com/oven-sh/bun) `bun_echo_tcp.js` TCP servers, and set `"allowed_origins"` array value to `chrome-extension://<ID>/` using ID from 5 . 
+7. Copy the `nm_tcpsocket.json` file to Chrome or Chromium configuration folder, e.g., on Chromium on Linux `~/.config/chromium/NativeMessagingHosts`.
+8. Make sure the TCP echo server `*.js` file is executable.
 
-The Web extension injects `DirectSocket` class into all `http:` and `https:` Web
-pages. When constructed `DirectSocket` class starts Node.js local server, and
-opens the IWA window.
-
-Communication between IWA window, background [MV3 `ServiceWorker`](https://developer.chrome.com/docs/extensions/develop/migrate/to-service-workers) in Web
-extension, and user determined Web page uses [`externally_connectable`](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable); IPC that
-uses JSON-like format in Chromium browser.
-
-The JSON from IPC is written to WHATWG Streams to implement [WICG Direct Sockets](https://wicg.github.io/direct-sockets/)
-`TCPSocket` and `UDPSocket` interfaces.
-
-Not implemented for `TCPSocketOptions`: `sendBufferSize`, `receiveBufferSize`, `dnsQueryType`.
+Or, programmatically when launching `chrome --load-extension=/home/user/sockets/direct-sockets`
 
 ## Usage
 
-In DevTools in an arbitrary Web page, TCP connection to remote address. Opens a
-minimal IWA window. Closing the socket closes the IWA window.
+To avoid mixed-content UI warning launch with 
 
 ```
-var socket = new DirectSocket("tcp", "52.43.121.77", 9001);
-var abortable = new AbortController();
-var decoder = new TextDecoder();
-var {
-  readable,
-  writable,
-  remoteAddress,
-  remotePort,
-  localAddress,
-  localPort
-} = await socket.opened;
-console.log({
-  remoteAddress,
-  remotePort,
-  localAddress,
-  localPort
-});
-var reader = readable.getReader();
-var promise = reader.read().then(function read({
-  value,
-  done
-} = {
-  value: {
-    data: void 0
-  },
-  done: false
-}) {
-  if (done) return reader.closed.then(() => "Done streaming");
-  console.log(decoder.decode(value?.data || value));
-  return reader.read().then(read);
-}).catch((e) => e.message);
-
-await new Response(`
-1. If a (logical or axiomatic formal) system is consistent, it cannot be complete.
-2. The consistency of axioms cannot be proved within their own system.
-
-- Kurt Gödel, Incompleteness Theorem, On Formally Undecidable Propositions 
-  of Principia Mathematica and Related Systems
-`).body.pipeTo(writable, {
-  preventClose: 1
-});
-promise
-  .then((p) => {
-    console.log(p);
-  }).catch(console.warn);
+chrome --unsafely-treat-insecure-origin-as-secure=http://0.0.0.0:44819
 ```
 
-TCP connection to local machine
+In an arbitrary window, for example, in `console` and Snippets in DevTools, or script imported, or script injected by Web extension, execute the script `direct-socket-controller.js` in the `direct-sockets` Web extension forlder, which communicates with IWA to local (or remote) `TCPSocket` back to Web page with WebRTC 
 
 ```
-var socket = new DirectSocket("tcp", "127.0.0.1", 8080);
-```
-
-Close TCP connection
-
-```
-socket.close();
-```
-
-UDP connection to remote address
-
-```
-var socket = new DirectSocket("udp", "52.43.121.77", 10001);
-var abortable = new AbortController();
 var encoder = new TextEncoder();
-var decoder = new TextDecoder();
-var {
-  readable,
-  writable,
-  remoteAddress,
-  remotePort,
-  localAddress,
-  localPort
-} = await socket.opened;
-console.log({
-  remoteAddress,
-  remotePort,
-  localAddress,
-  localPort
+var local = new RTCPeerConnection({
+  sdpSemantics: "unified-plan",
 });
-var reader = readable.getReader();
-var promise = reader.read().then(function read({
-  value,
-  done
-} = {
-  value: {
-    data: void 0
-  },
-  done: false
-}) {
-  if (done) return reader.closed.then(() => "Done streaming");
-  console.log(decoder.decode(value.data));
-  return reader.read().then(read);
-}).catch((e) => e.message);
+["onsignalingstatechange", "oniceconnectionstatechange", "onicegatheringstatechange", ].forEach( (e) => local.addEventListener(e, console.log));
 
-var writer = writable.getWriter();
-await writer.write({
-  data: encoder.encode(`So we need people to have weird new
-ideas ... we need more ideas to break it
-and make it better ...
-
-Use it. Break it. File bugs. Request features.
-
-- Soledad Penadés, Real time front-end alchemy, or: capturing, playing,
-  altering and encoding video and audio streams, without
-  servers or plugins!`)
+local.onicecandidate = async (e) => {
+  if (!e.candidate) {
+    try {
+      if (globalThis?.openIsolatedWebApp) {
+        await openIsolatedWebApp(`?name=Signed Web Bundle in Isolated Web App`);
+      } else {
+        setTitle(`?=Signed Web Bundle in Isolated Web App`);
+      }
+      await scheduler.postTask( () => {}
+      , {
+        delay: 2200,
+        priority: "user-visible"
+      });
+      console.log("sdp:", local.localDescription);
+      var abortable = new AbortController();
+      var {signal} = abortable;
+      var request = await fetch("http://0.0.0.0:44819", {
+        method: "post",
+        body: new TextEncoder().encode(local.localDescription.sdp),
+        signal,
+      }).then( (r) => r.text()).then(async (text) => {
+        await local.setRemoteDescription({
+          type: "answer",
+          sdp: text,
+        });
+        console.log("Done signaling SDP");
+      }
+      ).catch( (e) => {
+        console.log(e);
+      }
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+;
+var channel = local.createDataChannel("transfer", {
+  negotiated: true,
+  ordered: true,
+  id: 0,
+  binaryType: "arraybuffer",
+  protocol: "tcp",
 });
 
-promise
-  .then((p) => {
-    console.log(p);
-  }).catch(console.warn);
-```
+channel.onopen = async (e) => {
+  console.log(e.type, e.target);
+}
+;
+channel.onclose = async (e) => {
+  console.log(e.type, e.target);
+}
+;
+channel.onclosing = async (e) => {
+  console.log(e.type);
+}
+;
 
-UDP connection to local machine
+channel.onerror = async (e) => {
+  console.log(e.type, e.target);
+};
 
-```
-var socket = new DirectSocket("udp", "0.0.0.0", 10001);
-```
+channel.onmessage = async (e) => {
+  // Do stuff with data
+  console.log(e.data);
+}
+;
 
-Close UDP connection
-
-```
-await writer.close();
+var offer = await local.createOffer({
+  voiceActivityDetection: false,
+});
+local.setLocalDescription(offer);
 ```
 
 ## License
