@@ -42,6 +42,10 @@ onload = async () => {
         console.log("sdp:", local.localDescription);
         resolve(local.localDescription.sdp);
         document.title = "TCPSocket";
+        await scheduler.postTask(() => {}, {
+          delay: 200,
+          priority: "background",
+        });
         try {
           globalThis.socket = new TCPSocket("0.0.0.0", "8000");
           globalThis.stream = await socket.opened;
