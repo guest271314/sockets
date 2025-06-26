@@ -82,4 +82,7 @@ const { fileName, source } = await bundleIsolatedWebApp({
   },
 });
 writeFileSync(fileName, source);
-console.log(`${fileName}, ${source.byteLength} bytes.`);
+
+console.log(`${baseURL}
+${fileName}
+${source.byteLength} bytes`);
