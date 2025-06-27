@@ -108,7 +108,9 @@ or select the `signed.swbn` file in `chrome://web-app-internals`.
 7. Copy the `nm_tcpsocket.json` file to Chrome or Chromium configuration folder, e.g., on Chromium on Linux `~/.config/chromium/NativeMessagingHosts`.
 8. Make sure the TCP echo server `*.js` file is executable.
 
-Or, programmatically when launching `chrome --load-extension=/home/user/sockets/direct-sockets`
+Or, programmatically when launching `chrome --load-extension=/home/user/sockets/direct-sockets`.
+
+Load the unpacked Web extension [Isolated Web App Utilities](https://github.com/guest271314/isolated-web-app-utilities) to open the IWA window.
 
 ## Usage
 
@@ -131,9 +133,9 @@ local.onicecandidate = async (e) => {
   if (!e.candidate) {
     try {
       if (globalThis?.openIsolatedWebApp) {
-        await openIsolatedWebApp(`?name=Signed Web Bundle in Isolated Web App`);
+        await openIsolatedWebApp(`?name=TCPSocket`);
       } else {
-        setTitle(`?=Signed Web Bundle in Isolated Web App`);
+        setTitle(`?name=TCPSocket`);
       }
       await scheduler.postTask( () => {}
       , {
