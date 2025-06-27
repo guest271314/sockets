@@ -1,4 +1,5 @@
 onload = async () => {
+  document.title = "TCPSocket";
   const USER_AGENT = "";
   console.log(USER_AGENT);
   resizeTo(300, 200);
@@ -22,9 +23,7 @@ onload = async () => {
   globalThis.stream = null;
   globalThis.local = null;
   globalThis.channel = null;
-
   const { resolve, promise } = Promise.withResolvers();
-  const sdp = atob(new URL(location.href).searchParams.get("sdp"));
   local = new RTCPeerConnection({
     sdpSemantics: "unified-plan",
   });
@@ -41,11 +40,12 @@ onload = async () => {
       try {
         console.log("sdp:", local.localDescription);
         resolve(local.localDescription.sdp);
-        document.title = "TCPSocket";
+
         await scheduler.postTask(() => {}, {
-          delay: 200,
-          priority: "background",
+          delay: 350,
+          priority: "user-visible",
         });
+
         try {
           globalThis.socket = new TCPSocket("0.0.0.0", "8000");
           globalThis.stream = await socket.opened;
@@ -162,9 +162,9 @@ onload = async () => {
         await signalingWriter.write(
           encode(
             `HTTP/1.1 204 OK\r\n` +
-              `Access-Control-Allow-Headers: Access-Control-Request-Private-Network\r\n` +
               `Access-Control-Allow-Origin: *\r\n` +
-              `Access-Control-Allow-Headers: Access-Control-Request-Private-Network\r\n\r\n`,
+              `Access-Control-Allow-Private-Network: true\r\n` +
+              `Access-Control-Allow-Headers: *\r\n\r\n`,
           ),
         );
         continue;
@@ -204,6 +204,8 @@ onload = async () => {
             `HTTP/1.1 200 OK\r\n` +
               `Content-Type: application/octet-stream\r\n` +
               `Access-Control-Allow-Origin: *\r\n` +
+              `Access-Control-Allow-Private-Network: true\r\n` +
+              `Access-Control-Allow-Headers: *\r\n` +
               `Cache-Control: no-cache\r\n` +
               `Connection: close\r\n` +
               `Transfer-Encoding: chunked\r\n\r\n`,
