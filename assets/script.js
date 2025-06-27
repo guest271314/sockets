@@ -103,7 +103,7 @@ onload = async () => {
     ordered: true,
     id: 0,
     binaryType: "arraybuffer",
-    protocol: "udp",
+    protocol: "tcp",
   });
 
   channel.onopen = async (e) => {
