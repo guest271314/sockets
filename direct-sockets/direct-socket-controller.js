@@ -23,19 +23,16 @@ local.onicecandidate = async (e) => {
       console.log("sdp:", local.localDescription);
       var abortable = new AbortController();
       var { signal } = abortable;
-      var request = await fetch("http://0.0.0.0:44819", {
+      var sdp = await (await fetch("http://0.0.0.0:44819", {
         method: "post",
         body: new TextEncoder().encode(local.localDescription.sdp),
         signal,
-      }).then((r) => r.text()).then(async (text) => {
-        await local.setRemoteDescription({
-          type: "answer",
-          sdp: text,
-        });
-        console.log("Done signaling SDP");
-      }).catch((e) => {
-        console.log(e);
+      })).text();
+      await local.setRemoteDescription({
+        type: "answer",
+        sdp,
       });
+      console.log("Done signaling SDP");
     } catch (e) {
       console.error(e);
     }
