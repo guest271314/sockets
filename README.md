@@ -116,7 +116,6 @@ promise
 ```
 var socket = new DirectSocket("tcp", "tcpbin.com", 4242);
 var abortable = new AbortController();
-//var decoder = new TextDecoder();
 var {
   readable,
   writable,
