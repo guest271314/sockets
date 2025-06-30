@@ -52,7 +52,7 @@ writeFileSync(
   ),
 );
 
-const { fileName, source } = await bundleIsolatedWebApp({
+const { fileName, source, baseURL } = await bundleIsolatedWebApp({
   baseURL: isolatedWebAppURL,
   static: { dir: "assets" },
   formatVersion: "b2",
