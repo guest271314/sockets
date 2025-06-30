@@ -115,39 +115,22 @@ promise
 
 ```
 var socket = new DirectSocket("tcp", "tcpbin.com", 4242);
-var abortable = new AbortController();
-var {
-  readable,
-  writable,
-  remoteAddress,
-  remotePort,
-  localAddress,
-  localPort
-} = await socket.opened;
-console.log({
-  remoteAddress,
-  remotePort,
-  localAddress,
-  localPort
-});
-var reader = readable.pipeThrough(new TextDecoderStream()).getReader();
-var writer = writable.getWriter();
-var promise = reader.read().then(function read({
-  value,
-  done
-} = {
-  value: {
-    data: void 0
-  },
-  done: false
-}) {
-  if (done) return reader.closed.then(() => "Done streaming");
-  console.log((value?.data || value));
-  return reader.read().then(read);
-}).catch((e) => e.message);
+// ...
 
 await writer.write(new TextEncoder().encode("Test TCP echo server\n"));
 await writer.write(new TextEncoder().encode("TCP echo server, again\n"));
+await scheduler.postTask(() => writer.close(), {delay:300});
+
+promise
+  .then((p) => {
+    console.log(p);
+  }).catch(console.warn);
+```
+
+```
+var socket = new DirectSocket("tcp", "guest271314.github.io", 80);
+// ...
+await writer.write(new TextEncoder().encode("GET / HTTP/1.1\r\n\Host:guest271314.github.io\r\n\r\n"));
 await scheduler.postTask(() => writer.close(), {delay:300});
 
 promise
