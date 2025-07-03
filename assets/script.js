@@ -1,128 +1,112 @@
-document.title = "DirectSocket";
-const USER_AGENT = "";
-const EXTENSION_ID = "";
-console.log(USER_AGENT, EXTENSION_ID);
+const USER_AGENT = "Built with Bun/1.2.18";
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+{
+  const udpSocket = new UDPSocket({
+    remoteAddress: "52.43.121.77",
+    remotePort: 10001,
+  });
+  console.log(`Opening with ${udpSocket.constructor.name}`);
+  const {
+    readable,
+    writable,
+    remoteAddress,
+    remotePort,
+    localAddress,
+    localPort,
+  } = await udpSocket.opened;
+  console.log({
+    remoteAddress,
+    remotePort,
+    localAddress,
+    localPort,
+  });
+  const reader = readable.getReader();
+  const promise = reader.read().then(function read({
+    value,
+    done,
+  } = {
+    value: {
+      data: void 0,
+    },
+    done: false,
+  }) {
+    if (done) return reader.closed.then(() => "Done streaming");
+    console.log(decoder.decode(value.data));
+    return reader.read().then(read);
+  }).catch((e) => e.message);
 
-globalThis.encoder = new TextEncoder();
-globalThis.nativeSocket = null;
-globalThis.nativeSocketReadable = null;
-globalThis.nativeSocketWritable = null;
-globalThis.nativeSocketWriter = null;
-globalThis.nativeSocketAbortable = null;
-globalThis.socketType = "";
+  const writer = writable.getWriter();
+  await writer.write({
+    data: encoder.encode(`So we need people to have weird new
+ideas ... we need more ideas to break it
+and make it better ...
 
-const port = chrome.runtime.connect(EXTENSION_ID, {
-  name: "iwa",
-});
-port.onMessage.addListener(async (message) => {
-  globalThis.socketType = message.socketType;
-  if (!globalThis.nativeSocket) {
-    if (message.socketType === "tcp") {
-      globalThis.nativeSocket = new TCPSocket(
-        message.remoteAddress,
-        message.remotePort,
-        { noDelay: true, keepAliveDelay: 60 * 60 * 24 * 1000 },
-      );
-    }
-    if (message.socketType === "udp") {
-      globalThis.nativeSocket = new UDPSocket({
-        remoteAddress: message.remoteAddress,
-        remotePort: message.remotePort,
-      });
-    }
-    console.log(globalThis.nativeSocket);
-    nativeSocket.closed.then(() => console.log("socket closed"));
-    const p = await nativeSocket.opened;
-    globalThis.nativeSocketReadable = p.readable;
-    globalThis.nativeSocketWritable = p.writable;
-    globalThis.nativeSocketAbortable = new AbortController();
-    globalThis.nativeSocketWriter = globalThis.nativeSocketWritable.getWriter();
-    globalThis.nativeSocketAbortable.signal.onabort = (e) => {
-      globalThis.nativeSocket = null;
-      globalThis.nativeSocketReadable = null;
-      globalThis.nativeSocketWritable = null;
-      globalThis.nativeSocketWriter = null;
-      globalThis.nativeSocketAbortable = null;
-    };
-    globalThis.nativeSocketWriter.closed.then(() => {
-      console.log("writer closed");
-      if (globalThis.nativeSocketAbortable !== null) {
-        globalThis.nativeSocketAbortable.abort("reason");
-      }
-    });
+Use it. Break it. File bugs. Request features.
 
-    console.log(globalThis.nativeSocket);
-    globalThis.nativeSocketReadable.pipeTo(
-      new WritableStream({
-        start() {
-          const {
-            localAddress,
-            localPort,
-            remoteAddress,
-            remotePort,
-          } = p;
-          port.postMessage({
-            localAddress,
-            localPort,
-            remoteAddress,
-            remotePort,
-          });
-          document.body.insertAdjacentHTML(
-            "afterbegin",
-            `<pre>${
-              JSON.stringify(
-                {
-                  localAddress,
-                  localPort,
-                  remoteAddress,
-                  remotePort,
-                },
-                null,
-                2,
-              )
-            }
-          </pre>`,
-          );
-        },
-        write(data) {
-          port.postMessage(data?.data ? data : [...data]);
-        },
-        close() {
-          console.log("close");
-        },
-        abort(reason) {
-          console.log(reason);
-        },
-      }),
-      { signal: globalThis.nativeSocketAbortable.signal },
-    )
-      .then(() => console.log("stream closed"))
-      .catch((e) => console.log("stream closed for " + e));
-  } else {
-    if (
-      globalThis.nativeSocket instanceof UDPSocket &&
-      Object.hasOwn(message, "data")
-    ) {
-      await globalThis.nativeSocketWriter.write(
-        { data: new Uint8Array(Object.values(message.data)) },
-      );
-    }
-    if (globalThis.nativeSocket instanceof TCPSocket) {
-      await globalThis.nativeSocketWriter.write(
-        new Uint8Array(message),
-      );
-    }
-  }
-});
-port.onDisconnect.addListener((p) => {
-  if (chrome.runtime?.lastError) {
-    console.log(chrome.runtime.lastError);
-  }
-  console.log(p.name + " disconnected");
-  try {
-    globalThis.nativeSocketWriter.close();
-    globalThis.nativeSocketAbortable.abort("reason");
-  } catch (e) {
-    console.log(e);
-  }
-});
+- Soledad Penadés, Real time front-end alchemy, or: capturing, playing,
+  altering and encoding video and audio streams, without
+  servers or plugins!`),
+  });
+  await writer.ready;
+  await scheduler.postTask(() => {}, { delay: 1000 });
+  await Promise.allSettled([
+    writer.close(),
+    writer.closed,
+    reader.cancel(),
+    reader.closed,
+  ]);
+  await promise
+    .then((p) => {
+      console.log(p);
+    }).catch(console.warn);
+}
+
+{
+  const tcpSocket = new TCPSocket("52.43.121.77", 9001);
+  console.log(`Opening ${udpSocket.constructor.name}`);
+  const {
+    readable,
+    writable,
+    remoteAddress,
+    remotePort,
+    localAddress,
+    localPort,
+  } = await socket.opened;
+  console.log({
+    remoteAddress,
+    remotePort,
+    localAddress,
+    localPort,
+  });
+  const reader = readable.getReader();
+  const promise = reader.read().then(function read({
+    value,
+    done,
+  } = {
+    value: {
+      data: void 0,
+    },
+    done: false,
+  }) {
+    if (done) return reader.closed.then(() => "Done streaming");
+    console.log(decoder.decode(value?.data || value));
+    return reader.read().then(read);
+  }).catch((e) => e.message);
+
+  await new Response(`
+1. If a (logical or axiomatic formal) system is consistent, it cannot be complete.
+2. The consistency of axioms cannot be proved within their own system.
+
+- Kurt Gödel, Incompleteness Theorem, On Formally Undecidable Propositions 
+  of Principia Mathematica and Related Systems
+`).body.pipeTo(writable, {
+    preventClose: 1,
+  });
+  await scheduler.postTask(() => {}, { delay: 1000 });
+  await Promise.allSettled([writable.closed, reader.cancel(), reader.closed]);
+  promise
+    .then((p) => {
+      console.log(p);
+    }).catch(console.warn);
+}
