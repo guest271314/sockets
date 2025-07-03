@@ -72,7 +72,7 @@ Use it. Break it. File bugs. Request features.
     remotePort,
     localAddress,
     localPort,
-  } = await socket.opened;
+  } = await tcpSocket.opened;
   console.log({
     remoteAddress,
     remotePort,
