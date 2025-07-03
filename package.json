@@ -17,6 +17,6 @@
     "mime": "^4.0.4"
   },
   "author": "guest271314",
-  "type": "esm",
+  "type": "module",
   "main": "index.js"
 }
