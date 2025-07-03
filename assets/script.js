@@ -64,7 +64,7 @@ Use it. Break it. File bugs. Request features.
 
 {
   const tcpSocket = new TCPSocket("52.43.121.77", 9001);
-  console.log(`Opening ${udpSocket.constructor.name}`);
+  console.log(`Opening ${tcpSocket.constructor.name}`);
   const {
     readable,
     writable,
