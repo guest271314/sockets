@@ -17,7 +17,7 @@ local.onicecandidate = async (e) => {
         setTitle(`?=TCPSocket`);
       }
       await scheduler.postTask(() => {}, {
-        delay: 2200,
+        delay: 2500,
         priority: "user-visible",
       });
       console.log("sdp:", local.localDescription);
