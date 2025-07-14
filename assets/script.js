@@ -170,31 +170,26 @@ onload = async () => {
         continue;
       }
       if (/^(POST|query)/i.test(requestText)) {
-        const config = {
-          key: null,
-          headersRead: false,
-          callback(requestBuffer, element, index) {
-            // Match \r\n\r\n
-            if (!this.headersRead) {
-              this.headersRead = element === 13 &&
-                requestBuffer.at(index + 1) === 10 &&
-                requestBuffer.at(index + 2) === 13 &&
-                requestBuffer.at(index + 3) === 10;
-              if (this.headersRead && this.key === null) {
-                this.key = index + 4;
+        // https://codereview.stackexchange.com/a/297492/47730
+        function splitHeadersAndBody(raw) {
+          for (let i = 0; i < raw.length - 3; i++) {
+            if (
+              raw[i] === 13 && // \r
+              raw[i + 1] === 10 && // \n
+              raw[i + 2] === 13 && // \r
+              raw[i + 3] === 10 // \n
+            ) {
+              const headerEnd = i + 4;
+                return [
+                  raw.subarray(0, headerEnd), // headers
+                  raw.subarray(headerEnd), // body
+                ];
               }
             }
-            if (!this.headersRead || this.key !== null && index < this.key) {
-              return "headers";
-            }
-            return "body";
-          },
-        };
-        const result = Object.groupBy(
-          request,
-          config.callback.bind(config, request),
-        );
-
+            throw new Error("No header/body boundary found");
+          }
+        }
+        const [, result] = splitHeadersAndBody(request);
         console.log({
           request,
           result,
