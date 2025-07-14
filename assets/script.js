@@ -70,7 +70,7 @@ onload = async () => {
         globalThis.writer = writable.getWriter();
         globalThis.socket.closed.then(() => console.log("Socket closed"))
           .catch(() => console.warn("Socket error"));
-        globalThis.readable.pipeThrough(new TextDecoderStream()).pipeTo(
+        globalThis.readable.pipeTo(
           new WritableStream({
             start(controller) {
               console.log("Starting TCPSocket stream.");
