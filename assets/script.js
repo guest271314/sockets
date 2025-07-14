@@ -1,3 +1,22 @@
+// https://codereview.stackexchange.com/a/297492/47730
+function splitHeadersAndBody(raw) {
+  for (let i = 0; i < raw.length - 3; i++) {
+    if (
+      raw[i] === 13 && // \r
+      raw[i + 1] === 10 && // \n
+      raw[i + 2] === 13 && // \r
+      raw[i + 3] === 10 // \n
+    ) {
+      const headerEnd = i + 4;
+      return [
+        raw.subarray(0, headerEnd), // headers
+        raw.subarray(headerEnd), // body
+      ];
+    }
+  }
+  throw new Error("No header/body boundary found");
+}
+
 onload = async () => {
   document.title = "TCPSocket";
   const USER_AGENT = "";
@@ -103,25 +122,87 @@ onload = async () => {
     ordered: true,
     id: 0,
     binaryType: "arraybuffer",
-    protocol: "tcp",
+    protocol: "udp",
   });
 
+  let readableController;
+  let writableController;
+  let channelReadable;
+  let channelWritable;
+
   channel.onopen = async (e) => {
-    console.log(e.type);
+    console.log(e.type, e.target);
+
+    channelReadable = new ReadableStream({
+      start(_) {
+        return readableController = _;
+      },
+      cancel(reason) {
+        console.log(reason);
+      },
+    });
+
+    channelWritable = new WritableStream({
+      start(_) {
+        return writableController = _;
+      },
+      write(v) {
+        console.log(v);
+        channel.send(v);
+      },
+      close() {
+        console.log("channelWritable close");
+        channel.close();
+      },
+      abort(reason) {
+        console.log(reason);
+      },
+    });
+
+    channelReadable.pipeTo(
+      new WritableStream({
+        async write(v) {
+          await writer.write(v).catch(console.log);
+        },
+        close() {
+          console.log("channelReadable close");
+        }
+      }),
+    ).catch(() => channel.close());
   };
-  channel.onclose = channel.onerror = async (e) => {
-    console.log(e.type);
+
+  channel.onclose = async (e) => {
+    console.log(e.type, e.target);
+    await Promise.allSettled([
+      channelReadable.cancel(),
+      channelWritable.close(),
+    ])
+      .then(() => console.log("Data Channel stream closed")).catch(console.log);
     local.close();
     await writer.close().catch(console.log);
     abortable.abort("reason");
     close();
   };
+
   channel.onclosing = async (e) => {
     console.log(e.type);
   };
-  channel.onmessage = async (e) => {
-    console.log(e.data);
-    await writer.write(e.data).catch(console.log);
+
+  channel.onbufferedamountlow = (e) => {
+    console.log(e.type, channel.bufferedAmount);
+  };
+
+  channel.onerror = async (e) => {
+    console.log(e.type, e.target);
+    await Promise.allSettled([
+      channelReadable.cancel(),
+      channelWritable.close(),
+    ]).then(() => console.log("Data Channel stream closed"))
+      .catch(console.log);
+  };
+
+  channel.onmessage = (e) => {
+    readableController.enqueue(e.data);
   };
 
   const serverSocket = new TCPServerSocket("0.0.0.0", {
@@ -170,25 +251,6 @@ onload = async () => {
         continue;
       }
       if (/^(POST|query)/i.test(requestText)) {
-        // https://codereview.stackexchange.com/a/297492/47730
-        function splitHeadersAndBody(raw) {
-          for (let i = 0; i < raw.length - 3; i++) {
-            if (
-              raw[i] === 13 && // \r
-              raw[i + 1] === 10 && // \n
-              raw[i + 2] === 13 && // \r
-              raw[i + 3] === 10 // \n
-            ) {
-              const headerEnd = i + 4;
-                return [
-                  raw.subarray(0, headerEnd), // headers
-                  raw.subarray(headerEnd), // body
-                ];
-              }
-            }
-            throw new Error("No header/body boundary found");
-          }
-        }
         const [, result] = splitHeadersAndBody(request);
         console.log({
           request,
@@ -207,7 +269,7 @@ onload = async () => {
           ),
         );
 
-        const remoteSdp = decoder.decode(Uint8Array.from(result.body));
+        const remoteSdp = decoder.decode(result);
 
         await local.setRemoteDescription({
           type: "offer",

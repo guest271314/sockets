@@ -135,6 +135,6 @@ await scheduler.postTask(() => {}, {
   priority: "background",
 });
 
-await new Response("test, again").body.pipeTo(writable, {
+await new Response("test").body.pipeTo(writable, {
   preventClose: 1,
 });
