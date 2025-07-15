@@ -225,7 +225,8 @@ channel.onopen = async (e) => {
 
 channel.onclose = async (e) => {
   console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()]).then(() => console.log("streams closed")).catch(console.log);
+  await Promise.allSettled([readable.cancel(), writable.close()])
+   .then(() => console.log("streams closed")).catch(console.log);
 };
 
 channel.onclosing = async (e) => {
@@ -238,7 +239,8 @@ channel.onbufferedamountlow = (e) => {
 
 channel.onerror = async (e) => {
   console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()]).then(() => console.log("streams closed")).catch(console.log);
+  await Promise.allSettled([readable.cancel(), writable.close()])
+    .then(() => console.log("streams closed")).catch(console.log);
 };
 
 channel.onmessage = (e) => {
@@ -268,6 +270,9 @@ test. Test to the point it breaks.
 - Ed Buckbee, NASA Public Affairs Officer, Chasing the Moon`).body.pipeTo(writable, {
   preventClose: 1
 });
+
+// Close the connection
+await writable.close();
 ```
 
 ## License
