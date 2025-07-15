@@ -123,11 +123,11 @@ chrome --unsafely-treat-insecure-origin-as-secure=http://0.0.0.0:44819
 In an arbitrary window, for example, in `console` and Snippets in DevTools, or script imported, or script injected by Web extension, execute the script `direct-socket-controller.js` in the `direct-sockets` Web extension forlder, which communicates with IWA to local (or remote) `TCPSocket` back to Web page with WebRTC 
 
 ```
-var encoder = new TextEncoder();
+var decoder = new TextDecoder();
 var local = new RTCPeerConnection({
   sdpSemantics: "unified-plan",
 });
-["onsignalingstatechange", "oniceconnectionstatechange", "onicegatheringstatechange", ].forEach( (e) => local.addEventListener(e, console.log));
+["onsignalingstatechange", "oniceconnectionstatechange", "onicegatheringstatechange", ].forEach((e) => local.addEventListener(e, console.log));
 
 local.onicecandidate = async (e) => {
   if (!e.candidate) {
@@ -135,72 +135,139 @@ local.onicecandidate = async (e) => {
       if (globalThis?.openIsolatedWebApp) {
         await openIsolatedWebApp(`?name=TCPSocket`);
       } else {
-        setTitle(`?name=TCPSocket`);
+        setTitle(`?=TCPSocket`);
       }
-      await scheduler.postTask( () => {}
-      , {
-        delay: 2200,
-        priority: "user-visible"
+      await scheduler.postTask(() => {}, {
+        delay: 3000,
+        priority: "user-visible",
       });
       console.log("sdp:", local.localDescription);
       var abortable = new AbortController();
-      var {signal} = abortable;
-      var request = await fetch("http://0.0.0.0:44819", {
+      var {
+        signal
+      } = abortable;
+      var sdp = await (await fetch("http://0.0.0.0:44819", {
         method: "post",
         body: new TextEncoder().encode(local.localDescription.sdp),
         signal,
-      }).then( (r) => r.text()).then(async (text) => {
-        await local.setRemoteDescription({
-          type: "answer",
-          sdp: text,
-        });
-        console.log("Done signaling SDP");
-      }
-      ).catch( (e) => {
-        console.log(e);
-      }
-      );
+      })).text();
+      await local.setRemoteDescription({
+        type: "answer",
+        sdp,
+      });
+      console.log("Done signaling SDP");
     } catch (e) {
       console.error(e);
     }
   }
-}
-;
+};
 var channel = local.createDataChannel("transfer", {
   negotiated: true,
   ordered: true,
   id: 0,
   binaryType: "arraybuffer",
-  protocol: "tcp",
+  protocol: "udp",
 });
 
+var readableController;
+var writableController;
+
+var {
+  resolve,
+  promise: dataChannelStream
+} = Promise.withResolvers();
+// var writer = writable.getWriter();
+
 channel.onopen = async (e) => {
+
   console.log(e.type, e.target);
-}
-;
+
+  var readable = new ReadableStream({
+    start(_) {
+      return readableController = _;
+    },
+    cancel(reason) {
+      console.log(reason);
+    },
+  });
+
+  var writable = new WritableStream({
+    start(_) {
+      return writableController = _;
+    },
+    write(v) {
+      console.log(v);
+      console.log(channel.bufferedAmount);
+      channel.send(v);
+      channel.bufferedAmountLowThreshold = channel.bufferedAmount - 1;
+      console.log(channel.bufferedAmount);
+    },
+    close() {
+      console.log("writable close");
+      channel.close();
+    },
+    abort(reason) {
+      console.log(reason);
+    },
+  });
+
+  readable.pipeTo(new WritableStream({
+    write(v) {
+      console.log(decoder.decode(v));
+    },
+  }), ).catch(() => channel.close());
+
+  resolve({
+    readable,
+    writable
+  });
+};
+
 channel.onclose = async (e) => {
   console.log(e.type, e.target);
-}
-;
+  await Promise.allSettled([readable.cancel(), writable.close()]).then(() => console.log("streams closed")).catch(console.log);
+};
+
 channel.onclosing = async (e) => {
   console.log(e.type);
-}
-;
+};
+
+channel.onbufferedamountlow = (e) => {
+  console.log(e.type, channel.bufferedAmount);
+};
 
 channel.onerror = async (e) => {
   console.log(e.type, e.target);
+  await Promise.allSettled([readable.cancel(), writable.close()]).then(() => console.log("streams closed")).catch(console.log);
 };
 
-channel.onmessage = async (e) => {
-  // Do stuff with data
-  console.log(e.data);
-}
-;
+channel.onmessage = (e) => {
+  readableController.enqueue(e.data);
+};
 
 var offer = await local.createOffer({
   voiceActivityDetection: false,
 });
+
 local.setLocalDescription(offer);
+
+var {
+  readable,
+  writable
+} = await dataChannelStream;
+
+await scheduler.postTask(() => {}, {
+  delay: 500,
+  priority: "background",
+});
+
+await new Response(`von Braun believed in testing. I cannot
+emphasize that term enough – test, test,
+test. Test to the point it breaks.
+
+- Ed Buckbee, NASA Public Affairs Officer, Chasing the Moon`).body.pipeTo(writable, {
+  preventClose: 1
+});
 ```
 
 ## License
