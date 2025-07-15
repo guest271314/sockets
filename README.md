@@ -127,7 +127,11 @@ var decoder = new TextDecoder();
 var local = new RTCPeerConnection({
   sdpSemantics: "unified-plan",
 });
-["onsignalingstatechange", "oniceconnectionstatechange", "onicegatheringstatechange", ].forEach((e) => local.addEventListener(e, console.log));
+[
+  "onsignalingstatechange",
+  "oniceconnectionstatechange",
+  "onicegatheringstatechange",
+].forEach((e) => local.addEventListener(e, console.log));
 
 local.onicecandidate = async (e) => {
   if (!e.candidate) {
