@@ -1,12 +1,10 @@
 var decoder = new TextDecoder();
 var local = new RTCPeerConnection({
   sdpSemantics: "unified-plan",
+  iceServers: [],
 });
-[
-  "onsignalingstatechange",
-  "oniceconnectionstatechange",
-  "onicegatheringstatechange",
-].forEach((e) => local.addEventListener(e, console.log));
+["signalingstatechange", "iceconnectionstatechange", "icegatheringstatechange"]
+  .forEach((e) => local.addEventListener(e, console.log));
 
 local.onicecandidate = async (e) => {
   if (!e.candidate) {
@@ -20,7 +18,7 @@ local.onicecandidate = async (e) => {
         delay: 2500,
         priority: "user-visible",
       });
-      console.log("sdp:", local.localDescription);
+      console.log("sdp:", local.localDescription.toJSON());
       var abortable = new AbortController();
       var { signal } = abortable;
       var sdp = await (await fetch("http://0.0.0.0:44819", {
@@ -43,7 +41,7 @@ var channel = local.createDataChannel("transfer", {
   ordered: true,
   id: 0,
   binaryType: "arraybuffer",
-  protocol: "udp",
+  protocol: "tcp",
 });
 
 var readableController;
@@ -68,7 +66,7 @@ channel.onopen = async (e) => {
       return writableController = _;
     },
     write(v) {
-      console.log(v);
+      // console.log(v);
       channel.send(v);
     },
     close() {
@@ -79,14 +77,6 @@ channel.onopen = async (e) => {
       console.log(reason);
     },
   });
-
-  readable.pipeTo(
-    new WritableStream({
-      write(v) {
-        console.log(v);
-      },
-    }),
-  ).catch(() => channel.close());
 
   resolve({
     readable,
@@ -105,13 +95,9 @@ channel.onclosing = async (e) => {
   console.log(e.type);
 };
 
-channel.onbufferedamountlow = (e) => {
-  console.log(e.type, channel.bufferedAmount);
-};
-
 channel.onerror = async (e) => {
   console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()]).then(() =>
+  await Promise.allSettled([readable.cancel(), writable.abort()]).then(() =>
     console.log("streams closed")
   ).catch(console.log);
 };
@@ -128,13 +114,41 @@ local.setLocalDescription(offer);
 
 var { readable, writable } = await dataChannelStream;
 
-// var writer = writable.getWriter();
+var writer = writable.getWriter();
+var reader = readable.getReader();
 
 await scheduler.postTask(() => {}, {
   delay: 500,
   priority: "background",
 });
 
-await new Response("test").body.pipeTo(writable, {
-  preventClose: 1,
+Promise.allSettled([writable.closed, readable.closed]).then((args) =>
+  console.log(args)
+).catch(console.error);
+
+async function stream(input) {
+  let len = 0;
+  for (let i = 0; i < input.length; i += 16384) {
+    await writer.ready;
+    await writer.write(input.subarray(i, i + 16384));
+    await new Promise((resolve) => {
+      channel.addEventListener("bufferedamountlow", resolve, {
+        once: true,
+      });
+    });
+    var { value: data, done } = await reader.read();
+    len += data.byteLength;
+  }
+  return len;
+}
+
+var binaryResult = await stream(new Uint8Array(1024 ** 2 * 20))
+  .catch((e) => e);
+
+console.log({
+  binaryResult,
 });
+
+reader.read().then(console.log);
+readableController.close();
+await writer.close();
