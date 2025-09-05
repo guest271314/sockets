@@ -120,18 +120,15 @@ To avoid mixed-content UI warning launch with
 chrome --unsafely-treat-insecure-origin-as-secure=http://0.0.0.0:44819
 ```
 
-In an arbitrary window, for example, in `console` and Snippets in DevTools, or script imported, or script injected by Web extension, execute the script `direct-socket-controller.js` in the `direct-sockets` Web extension forlder, which communicates with IWA to local (or remote) `TCPSocket` back to Web page with WebRTC 
+In an arbitrary window, for example, in `console` and Snippets in DevTools, or script imported, or script injected by Web extension, execute the script `direct-socket-controller-streams.js` in the `direct-sockets` Web extension forlder, which communicates with IWA to local (or remote) `TCPSocket` back to Web page with WebRTC 
 
 ```
-var decoder = new TextDecoder();
 var local = new RTCPeerConnection({
   sdpSemantics: "unified-plan",
+  iceServers: [],
 });
-[
-  "onsignalingstatechange",
-  "oniceconnectionstatechange",
-  "onicegatheringstatechange",
-].forEach((e) => local.addEventListener(e, console.log));
+["signalingstatechange", "iceconnectionstatechange", "icegatheringstatechange"]
+  .forEach((e) => local.addEventListener(e, console.log));
 
 local.onicecandidate = async (e) => {
   if (!e.candidate) {
@@ -142,14 +139,12 @@ local.onicecandidate = async (e) => {
         setTitle(`?=TCPSocket`);
       }
       await scheduler.postTask(() => {}, {
-        delay: 3000,
+        delay: 2500,
         priority: "user-visible",
       });
-      console.log("sdp:", local.localDescription);
+      console.log("sdp:", local.localDescription.toJSON());
       var abortable = new AbortController();
-      var {
-        signal
-      } = abortable;
+      var { signal } = abortable;
       var sdp = await (await fetch("http://0.0.0.0:44819", {
         method: "post",
         body: new TextEncoder().encode(local.localDescription.sdp),
@@ -170,20 +165,15 @@ var channel = local.createDataChannel("transfer", {
   ordered: true,
   id: 0,
   binaryType: "arraybuffer",
-  protocol: "udp",
+  protocol: "tcp",
 });
 
 var readableController;
 var writableController;
 
-var {
-  resolve,
-  promise: dataChannelStream
-} = Promise.withResolvers();
-// var writer = writable.getWriter();
+var { resolve, promise: dataChannelStream } = Promise.withResolvers();
 
 channel.onopen = async (e) => {
-
   console.log(e.type, e.target);
 
   var readable = new ReadableStream({
@@ -200,11 +190,8 @@ channel.onopen = async (e) => {
       return writableController = _;
     },
     write(v) {
-      console.log(v);
-      console.log(channel.bufferedAmount);
+      // console.log(v);
       channel.send(v);
-      channel.bufferedAmountLowThreshold = channel.bufferedAmount - 1;
-      console.log(channel.bufferedAmount);
     },
     close() {
       console.log("writable close");
@@ -215,36 +202,28 @@ channel.onopen = async (e) => {
     },
   });
 
-  readable.pipeTo(new WritableStream({
-    write(v) {
-      console.log(decoder.decode(v));
-    },
-  }), ).catch(() => channel.close());
-
   resolve({
     readable,
-    writable
+    writable,
   });
 };
 
 channel.onclose = async (e) => {
   console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()])
-   .then(() => console.log("streams closed")).catch(console.log);
+  await Promise.allSettled([readable.cancel(), writable.close()]).then(() =>
+    console.log("streams closed")
+  ).catch(console.log);
 };
 
 channel.onclosing = async (e) => {
   console.log(e.type);
 };
 
-channel.onbufferedamountlow = (e) => {
-  console.log(e.type, channel.bufferedAmount);
-};
-
 channel.onerror = async (e) => {
   console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()])
-    .then(() => console.log("streams closed")).catch(console.log);
+  await Promise.allSettled([readable.cancel(), writable.abort()]).then(() =>
+    console.log("streams closed")
+  ).catch(console.log);
 };
 
 channel.onmessage = (e) => {
@@ -257,26 +236,47 @@ var offer = await local.createOffer({
 
 local.setLocalDescription(offer);
 
-var {
-  readable,
-  writable
-} = await dataChannelStream;
+var { readable, writable } = await dataChannelStream;
+
+var writer = writable.getWriter();
+var reader = readable.getReader();
 
 await scheduler.postTask(() => {}, {
   delay: 500,
   priority: "background",
 });
 
-await new Response(`von Braun believed in testing. I cannot
-emphasize that term enough – test, test,
-test. Test to the point it breaks.
+Promise.allSettled([writable.closed, readable.closed]).then((args) =>
+  console.log(args)
+).catch(console.error);
 
-- Ed Buckbee, NASA Public Affairs Officer, Chasing the Moon`).body.pipeTo(writable, {
-  preventClose: 1
+async function stream(input) {
+  let len = 0;
+  for (let i = 0; i < input.length; i += 16384) {
+    await writer.ready;
+    await writer.write(input.subarray(i, i + 16384));
+    await new Promise((resolve) => {
+      channel.addEventListener("bufferedamountlow", resolve, {
+        once: true,
+      });
+    });
+    var { value: data, done } = await reader.read();
+    len += data.byteLength;
+  }
+  return len;
+}
+
+var binaryResult = await stream(new Uint8Array(1024 ** 2 * 20))
+  .catch((e) => e);
+
+console.log({
+  binaryResult,
 });
 
-// Close the connection
-await writable.close();
+reader.read().then(console.log);
+readableController.close();
+await writer.close();
+
 ```
 
 ## License
