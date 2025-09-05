@@ -265,7 +265,7 @@ async function stream(input) {
   }
   return len;
 }
-
+// Echo 20 MB
 var binaryResult = await stream(new Uint8Array(1024 ** 2 * 20))
   .catch((e) => e);
 
