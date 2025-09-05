@@ -45,11 +45,12 @@ onload = async () => {
   const { resolve, promise } = Promise.withResolvers();
   local = new RTCPeerConnection({
     sdpSemantics: "unified-plan",
+    iceServers: []
   });
   [
-    "onsignalingstatechange",
-    "oniceconnectionstatechange",
-    "onicegatheringstatechange",
+    "signalingstatechange",
+    "iceconnectionstatechange",
+    "icegatheringstatechange",
   ].forEach((e) => local.addEventListener(e, console.log));
 
   local.onicecandidate = async ({
@@ -57,7 +58,7 @@ onload = async () => {
   }) => {
     if (!candidate) {
       try {
-        console.log("sdp:", local.localDescription);
+        console.log("sdp:", local.localDescription.toJSON());
         resolve(local.localDescription.sdp);
 
         await scheduler.postTask(() => {}, {
@@ -122,7 +123,7 @@ onload = async () => {
     ordered: true,
     id: 0,
     binaryType: "arraybuffer",
-    protocol: "udp",
+    protocol: "tcp",
   });
 
   let readableController;
@@ -189,7 +190,7 @@ onload = async () => {
   };
 
   channel.onbufferedamountlow = (e) => {
-    console.log(e.type, channel.bufferedAmount);
+    // console.log(e.type, channel.bufferedAmount);
   };
 
   channel.onerror = async (e) => {
