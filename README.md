@@ -125,10 +125,12 @@ In an arbitrary window, for example, in `console` and Snippets in DevTools, or s
 ```
 var local = new RTCPeerConnection({
   sdpSemantics: "unified-plan",
-  iceServers: [],
+  iceServers: []
 });
-["signalingstatechange", "iceconnectionstatechange", "icegatheringstatechange"]
-  .forEach((e) => local.addEventListener(e, console.log));
+["signalingstatechange", 
+ "iceconnectionstatechange", 
+ "icegatheringstatechange", ]
+  .forEach( (e) => local.addEventListener(e, console.log));
 
 local.onicecandidate = async (e) => {
   if (!e.candidate) {
@@ -138,13 +140,14 @@ local.onicecandidate = async (e) => {
       } else {
         setTitle(`?=TCPSocket`);
       }
-      await scheduler.postTask(() => {}, {
+      await scheduler.postTask( () => {}
+      , {
         delay: 2500,
         priority: "user-visible",
       });
-      console.log("sdp:", local.localDescription.toJSON());
+      console.log("sdp:", local.localDescription.toJSON().sdp);
       var abortable = new AbortController();
-      var { signal } = abortable;
+      var {signal} = abortable;
       var sdp = await (await fetch("http://0.0.0.0:44819", {
         method: "post",
         body: new TextEncoder().encode(local.localDescription.sdp),
@@ -171,7 +174,7 @@ var channel = local.createDataChannel("transfer", {
 var readableController;
 var writableController;
 
-var { resolve, promise: dataChannelStream } = Promise.withResolvers();
+var {resolve, promise: dataChannelStream} = Promise.withResolvers();
 
 channel.onopen = async (e) => {
   console.log(e.type, e.target);
@@ -190,7 +193,6 @@ channel.onopen = async (e) => {
       return writableController = _;
     },
     write(v) {
-      // console.log(v);
       channel.send(v);
     },
     close() {
@@ -210,9 +212,8 @@ channel.onopen = async (e) => {
 
 channel.onclose = async (e) => {
   console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()]).then(() =>
-    console.log("streams closed")
-  ).catch(console.log);
+  await Promise.allSettled([readable.cancel(), writable.close()])
+    .then( () => console.log("Data channel closed")).catch(console.log);
 };
 
 channel.onclosing = async (e) => {
@@ -221,9 +222,8 @@ channel.onclosing = async (e) => {
 
 channel.onerror = async (e) => {
   console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.abort()]).then(() =>
-    console.log("streams closed")
-  ).catch(console.log);
+  await Promise.allSettled([readable.cancel(), writable.abort(e.message)])
+    .then( () => console.log("Data channel errored")).catch(console.log);
 };
 
 channel.onmessage = (e) => {
@@ -236,47 +236,44 @@ var offer = await local.createOffer({
 
 local.setLocalDescription(offer);
 
-var { readable, writable } = await dataChannelStream;
+var {readable, writable} = await dataChannelStream;
 
 var writer = writable.getWriter();
 var reader = readable.getReader();
 
-await scheduler.postTask(() => {}, {
+await scheduler.postTask( () => {}
+, {
   delay: 500,
   priority: "background",
 });
 
-Promise.allSettled([writable.closed, readable.closed]).then((args) =>
-  console.log(args)
-).catch(console.error);
+Promise.allSettled([writable.closed, readable.closed])
+  .then( (args, ) => console.log(args)).catch(console.error);
+
+var {maxMessageSize} = local.sctp;
 
 async function stream(input) {
   let len = 0;
-  for (let i = 0; i < input.length; i += 16384) {
+  for (let i = 0; i < input.length; i += maxMessageSize) {
+    const data = input.subarray(i, i + maxMessageSize);
+    const inputLength = data.length;
     await writer.ready;
-    await writer.write(input.subarray(i, i + 16384));
-    await new Promise((resolve) => {
-      channel.addEventListener("bufferedamountlow", resolve, {
-        once: true,
-      });
-    });
-    var { value: data, done } = await reader.read();
-    len += data.byteLength;
+    await writer.write(data);
+    let readLength = 0;
+    do {
+      var {value, done} = await reader.read();
+      len += value.byteLength;
+      readLength += value.byteLength;
+    } while (readLength < inputLength);
   }
   return len;
 }
-// Echo 20 MB
-var binaryResult = await stream(new Uint8Array(1024 ** 2 * 20))
-  .catch((e) => e);
+
+var binaryResult = await stream(new Uint8Array(1024 ** 2 * 20)).catch( (e) => e);
 
 console.log({
   binaryResult,
 });
-
-reader.read().then(console.log);
-readableController.close();
-await writer.close();
-
 ```
 
 ## License
