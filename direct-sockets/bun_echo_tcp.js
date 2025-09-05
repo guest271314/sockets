@@ -62,8 +62,7 @@ const server = Bun.listen({
   port: 8000,
   socket: {
     data(socket, data) {
-      const response = decoder.decode(data).toUpperCase();
-      socket.write(encoder.encode(response));
+      socket.write(data);
     },
     open(socket) {
       sendMessage(encodeMessage("Socket open."));
