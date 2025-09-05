@@ -57,13 +57,11 @@ try {
   const conn = await listener.accept();
   const writer = conn.writable.getWriter();
 
-  await conn.readable.pipeThrough(new TextDecoderStream(), {
-    signal,
-  })
+  await conn.readable
     .pipeTo(
       new WritableStream({
         async write(value, controller) {
-          await writer.write(encoder.encode(value.toUpperCase()));
+          await writer.write(value);
         },
         close() {
           sendMessage(encodeMessage("Stream closed"));
