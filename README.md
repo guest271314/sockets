@@ -1,5 +1,5 @@
 # sockets
-TCP and UDP sockets in the browser using Web extension API's and Direct Sockets from an [Isolated Web App](https://github.com/WICG/isolated-web-apps/blob/main/README.md) (IWA).
+TCP and UDP sockets in the browser using Web extension API's and Direct Sockets from an [Isolated Web App](https://github.com/WICG/isolated-web-apps/blob/main/README.md) (IWA). See also [`fetch-webrtc` branch](https://github.com/guest271314/sockets/tree/fetch-webrtc).
 
 ## Install dependencies
 
