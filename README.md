@@ -85,6 +85,22 @@ or
 ```
 bun index.js
 ```
+
+## Install dependencies and write Signed Web Bundle
+
+```
+import { $ } from "bun";
+await $.cwd(`/home/user/sockets-fetch-webrtc`);
+const pwd = await $`pwd`.text();
+await $`echo Working in ${pwd}`;
+await $`bun index.js`;
+const p = "/home/user/chrome-linux/chrome --no-startup-window "
++ "--password-store=basic --install-isolated-web-app-from-file="
++ "/home/user/sockets-fetch-webrtc/signed.swbn";
+await $`bash -c "${p}"`;
+process.exit();
+```
+
 ## Load the Signed Web Bundle 
 
 On command line
