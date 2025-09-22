@@ -1,153 +1,200 @@
-var decoder = new TextDecoder();
-var local = new RTCPeerConnection({
-  sdpSemantics: "unified-plan",
-  iceServers: []
-});
-["signalingstatechange", 
- "iceconnectionstatechange", 
- "icegatheringstatechange", ]
-  .forEach( (e) => local.addEventListener(e, console.log));
-
-local.onicecandidate = async (e) => {
-  if (!e.candidate) {
-    try {
-      if (globalThis?.openIsolatedWebApp) {
-        await openIsolatedWebApp(`?name=TCPSocket`);
-      } else {
-        setTitle(`?=TCPSocket`);
+class DirectSockets {
+  options;
+  opened;
+  close;
+  closed;
+  constructor(options) {
+    this.options = options;
+    const {
+      resolve: transportClosedResolve,
+      reject: transportClosedReject,
+      promise: transportClosedPromise
+    } = Promise.withResolvers();
+    const {
+      resolve: dataChannelOpenResolve,
+      reject: dataChannelOpenReject,
+      promise: dataChannelOpenPromise
+    } = Promise.withResolvers();
+    const {
+      resolve: dataChannelCloseResolve,
+      reject: dataChannelCloseReject,
+      promise: dataChannelClosePromise
+    } = Promise.withResolvers();
+    let local, channel, readableController, writableController, rejectOpen, rejectClose;
+    this.opened = new Promise(async (resolveOpen, _) => {
+      rejectOpen = _;
+      var decoder = new TextDecoder;
+      local = new RTCPeerConnection({
+        sdpSemantics: "unified-plan",
+        iceServers: []
+      });
+      for (const rtcPeerConnectionEvent of [
+        "signalingstatechange",
+        "iceconnectionstatechange",
+        "icegatheringstatechange"
+      ]) {
+        local.addEventListener(rtcPeerConnectionEvent, async (e) => {
+          if (e.type === "iceconnectionstatechange" && e.target.sctp.state === "closed") {
+            await dataChannelClosePromise;
+            this.options.readyState = channel.readyState;
+            transportClosedResolve();
+          }
+        });
       }
-      await scheduler.postTask( () => {}
-      , {
-        delay: 2500,
-        priority: "user-visible",
+      local.onicecandidate = async (e) => {
+        if (!e.candidate) {
+          try {
+            if (globalThis?.openIsolatedWebApp) {
+              await openIsolatedWebApp(`?name=TCPSocket`);
+            } else {
+              if (globalThis?.setTitle) {
+                setTitle(`?=TCPSocket`);
+              } else {
+                document.title = "?=TCPSocket";
+              }
+            }
+            await scheduler.postTask(() => {}, {
+              delay: 2000,
+              priority: "user-visible"
+            });
+            const sdp = await (await fetch("http://0.0.0.0:44819", {
+              method: "post",
+              body: new TextEncoder().encode(local.localDescription.sdp)
+            })).text();
+            await local.setRemoteDescription({
+              type: "answer",
+              sdp
+            });
+          } catch (e2) {
+            console.error(e2);
+          }
+        }
+      };
+      channel = local.createDataChannel(JSON.stringify({
+        address: options.address,
+        port: options.port,
+        protocol: options.protocol
+      }), {
+        negotiated: false,
+        ordered: true,
+        id: 0,
+        binaryType: "arraybuffer",
+        protocol: options.protocol
       });
-      console.log("sdp:", local.localDescription.toJSON().sdp);
-      var abortable = new AbortController();
-      var {signal} = abortable;
-      var sdp = await (await fetch("http://0.0.0.0:44819", {
-        method: "post",
-        body: new TextEncoder().encode(local.localDescription.sdp),
-        signal,
-      })).text();
-      await local.setRemoteDescription({
-        type: "answer",
-        sdp,
+      channel.onopen = async (e) => {
+        const {
+          binaryType,
+          label,
+          bufferedAmount,
+          ordered,
+          protocol,
+          readyState,
+          reliable
+        } = e.target;
+        Object.assign(this.options, {
+          binaryType,
+          label,
+          bufferedAmount,
+          ordered,
+          protocol,
+          readyState,
+          reliable
+        });
+        const readable2 = new ReadableStream({
+          start(_2) {
+            return readableController = _2;
+          },
+          cancel(reason) {
+            console.log(reason);
+          }
+        });
+        const writable2 = new WritableStream({
+          start(_2) {
+            return writableController = _2;
+          },
+          write(v) {
+            if (channel.readyState === "open") {
+              channel.send(v);
+            }
+          },
+          close() {
+            channel.close();
+            readableController.close();
+          },
+          abort(reason) {
+            console.log(reason);
+          }
+        });
+        dataChannelOpenResolve({
+          readable: readable2,
+          writable: writable2
+        });
+      };
+      channel.onclose = async (e) => {
+        console.log(local);
+        this.options.readyState = e.target.readyState;
+        if (local.connectionState === "closed" || local?.sctp?.state === "closed") {
+          dataChannelCloseReject();
+        } else {
+          if (local.sctp.state === "connected") {
+            dataChannelCloseResolve();
+          }
+        }
+      };
+      channel.onclosing = async (e) => {
+        console.log(e.type);
+      };
+      channel.onerror = async (e) => {
+        console.log(e.type, e.target);
+        await Promise.allSettled([readable.closed, writable.closed])
+          .then((args) => console.log(readable.locked, writable.locked)).catch(console.log);
+      };
+      channel.onmessage = (e) => {
+        readableController.enqueue(e.data);
+      };
+      const offer = await local.createOffer({
+        voiceActivityDetection: false,
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false,
+        iceRestart: false
       });
-      console.log("Done signaling SDP");
-    } catch (e) {
-      console.error(e);
-    }
+      await local.setLocalDescription(offer);
+      const { readable, writable } = await dataChannelOpenPromise;
+      await scheduler.postTask(() => {}, {
+        delay: 1000,
+        priority: "background"
+      });
+      this.options.maxMessageSize = options.protocol === "udp" ? 65507 : local.sctp.maxMessageSize;
+      this.bufferedAmountLow = async () => await new Promise((resolve) => {
+        channel.addEventListener("bufferedamountlow", resolve, {
+          once: true
+        });
+      });
+      resolveOpen({ readable, writable });
+    }).catch((e) => {
+      throw e;
+    });
+    this.closed = Promise.allSettled([
+      new Promise(async (r, _) => {
+        rejectClose = _;
+        r(transportClosedPromise);
+      }),
+      dataChannelClosePromise
+    ]).catch((e) => {
+      throw e;
+    });
+    this.close = () => {
+      try {
+        transportClosedReject();
+        rejectOpen();
+        rejectClose();
+        channel?.close();
+        local?.close();
+      } catch (e) {
+        console.log(e);
+      } finally {
+        this.options.readyState = channel.readyState;
+      }
+    };
   }
 }
-;
-var channel = local.createDataChannel("transfer", {
-  negotiated: true,
-  ordered: true,
-  id: 0,
-  binaryType: "arraybuffer",
-  protocol: "tcp",
-});
-
-var readableController;
-var writableController;
-
-var {resolve, promise: dataChannelStream} = Promise.withResolvers();
-
-channel.onopen = async (e) => {
-  console.log(e.type, e.target);
-
-  var readable = new ReadableStream({
-    start(_) {
-      return readableController = _;
-    },
-    cancel(reason) {
-      console.log(reason);
-    },
-  });
-
-  var writable = new WritableStream({
-    start(_) {
-      return writableController = _;
-    },
-    write(v) {
-      channel.send(v);
-    },
-    close() {
-      console.log("writable close");
-      channel.close();
-    },
-    abort(reason) {
-      console.log(reason);
-    },
-  });
-
-  resolve({
-    readable,
-    writable,
-  });
-};
-
-channel.onclose = async (e) => {
-  console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()])
-    .then( () => console.log("Data channel closed")).catch(console.log);
-};
-
-channel.onclosing = async (e) => {
-  console.log(e.type);
-};
-
-channel.onerror = async (e) => {
-  console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.abort(e.message)])
-    .then( () => console.log("Data channel errored")).catch(console.log);
-};
-
-channel.onmessage = (e) => {
-  readableController.enqueue(e.data);
-};
-
-var offer = await local.createOffer({
-  voiceActivityDetection: false,
-});
-
-local.setLocalDescription(offer);
-
-var {readable, writable} = await dataChannelStream;
-
-var writer = writable.getWriter();
-var reader = readable.getReader();
-
-await scheduler.postTask( () => {}
-, {
-  delay: 500,
-  priority: "background",
-});
-
-Promise.allSettled([writable.closed, readable.closed])
-  .then( (args, ) => console.log(args)).catch(console.error);
-
-var {maxMessageSize} = local.sctp;
-
-async function stream(input) {
-  let len = 0;
-  for (let i = 0; i < input.length; i += maxMessageSize) {
-    const data = input.subarray(i, i + maxMessageSize);
-    const inputLength = data.length;
-    await writer.ready;
-    await writer.write(data);
-    let readLength = 0;
-    do {
-      var {value, done} = await reader.read();
-      len += value.byteLength;
-      readLength += value.byteLength;
-    } while (readLength < inputLength);
-  }
-  return len;
-}
-
-var binaryResult = await stream(new Uint8Array(1024 ** 2 * 20)).catch( (e) => e);
-
-console.log({
-  binaryResult,
-});
