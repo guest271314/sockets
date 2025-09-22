@@ -146,160 +146,176 @@ on Chromium Version 142.0.7401.0 (Developer Build) (64-bit)).
 
 
 
-In an arbitrary window, for example, in `console` and Snippets in DevTools, or script imported, or script injected by Web extension, execute the script `direct-socket-controller-streams.js` in the `direct-sockets` Web extension forlder, which communicates with IWA to local (or remote) `TCPSocket` back to Web page with WebRTC 
+In an arbitrary window, for example, in `console` and Snippets in DevTools, or script imported, or script injected by Web extension, execute the script `direct-socket-controller-streams.js` in the `direct-sockets` Web extension forlder, which communicates with IWA to local or remote `TCPSocket` or `UDPSocket` and back to back to Web page with WebRTC 
+
+### Send 20 MB to local UDP server, read 20 MB echoed back
+```
+var socket = new DirectSockets({
+  protocol: "udp",
+  address: "127.0.0.1",
+  port: 8000,
+});
+
+socket.closed.then(() =>
+  console.log("socket closed resolve", socket.options.readyState)
+).catch((e) =>
+  console.log("socket closed reject", e, socket.options.readyState)
+);
+// Early close
+// socket.close();
+var decoder = new TextDecoder();
+var p = await socket.opened.catch((e) => {
+  console.log("socket opened reject", e);
+});
+if (p?.readable) {
+  var {
+    readable,
+    writable
+  } = p;
+  var reader = readable.getReader();
+  var writer = writable.getWriter();
+  async function stream(input) {
+    var len = 0;
+    for (let i = 0; i < input.length; i += socket.options.maxMessageSize) {
+      const data = input.subarray(i, i + socket.options.maxMessageSize);
+      await writer.ready;
+      await writer.write(data).catch((e) => {
+        throw e;
+      });
+      await socket.bufferedAmountLow();
+      let readLength = 0;
+      do {
+        var {
+          value,
+          done
+        } = await reader.read();
+        len += value.byteLength, done;
+        readLength += value.byteLength;
+      } while (readLength < data.length);
+    }
+    await Promise.all([writer.close(), writer.closed]);
+    return len;
+  }
+  var result = await stream(new Uint8Array(1024 ** 2 * 20)).catch((e) => e);
+
+  console.log(result);
+  reader.releaseLock();
+  writer.releaseLock();
+}
+```
+
+### Send message to tcpbin.com, read message echoed back over TCP
 
 ```
-var local = new RTCPeerConnection({
-  sdpSemantics: "unified-plan",
-  iceServers: []
-});
-["signalingstatechange", 
- "iceconnectionstatechange", 
- "icegatheringstatechange", ]
-  .forEach( (e) => local.addEventListener(e, console.log));
-
-local.onicecandidate = async (e) => {
-  if (!e.candidate) {
-    try {
-      if (globalThis?.openIsolatedWebApp) {
-        await openIsolatedWebApp(`?name=TCPSocket`);
-      } else {
-        setTitle(`?=TCPSocket`);
-      }
-      await scheduler.postTask( () => {}
-      , {
-        delay: 2500,
-        priority: "user-visible",
-      });
-      console.log("sdp:", local.localDescription.toJSON().sdp);
-      var abortable = new AbortController();
-      var {signal} = abortable;
-      var sdp = await (await fetch("http://0.0.0.0:44819", {
-        method: "post",
-        body: new TextEncoder().encode(local.localDescription.sdp),
-        signal,
-      })).text();
-      await local.setRemoteDescription({
-        type: "answer",
-        sdp,
-      });
-      console.log("Done signaling SDP");
-    } catch (e) {
-      console.error(e);
-    }
-  }
-};
-var channel = local.createDataChannel("transfer", {
-  negotiated: true,
-  ordered: true,
-  id: 0,
-  binaryType: "arraybuffer",
+var socket = new DirectSockets({
   protocol: "tcp",
+  address: "tcpbin.com",
+  port: 4242,
 });
-
-var readableController;
-var writableController;
-
-var {resolve, promise: dataChannelStream} = Promise.withResolvers();
-
-channel.onopen = async (e) => {
-  console.log(e.type, e.target);
-
-  var readable = new ReadableStream({
-    start(_) {
-      return readableController = _;
-    },
-    cancel(reason) {
-      console.log(reason);
-    },
-  });
-
-  var writable = new WritableStream({
-    start(_) {
-      return writableController = _;
-    },
-    write(v) {
-      channel.send(v);
-    },
-    close() {
-      console.log("writable close");
-      channel.close();
-    },
-    abort(reason) {
-      console.log(reason);
-    },
-  });
-
-  resolve({
-    readable,
-    writable,
-  });
-};
-
-channel.onclose = async (e) => {
-  console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.close()])
-    .then( () => console.log("Data channel closed")).catch(console.log);
-};
-
-channel.onclosing = async (e) => {
-  console.log(e.type);
-};
-
-channel.onerror = async (e) => {
-  console.log(e.type, e.target);
-  await Promise.allSettled([readable.cancel(), writable.abort(e.message)])
-    .then( () => console.log("Data channel errored")).catch(console.log);
-};
-
-channel.onmessage = (e) => {
-  readableController.enqueue(e.data);
-};
-
-var offer = await local.createOffer({
-  voiceActivityDetection: false,
-});
-
-local.setLocalDescription(offer);
-
-var {readable, writable} = await dataChannelStream;
-
-var writer = writable.getWriter();
-var reader = readable.getReader();
-
-await scheduler.postTask( () => {}
-, {
-  delay: 500,
-  priority: "background",
-});
-
-Promise.allSettled([writable.closed, readable.closed])
-  .then( (args, ) => console.log(args)).catch(console.error);
-
-var {maxMessageSize} = local.sctp;
-
 async function stream(input) {
-  let len = 0;
-  for (let i = 0; i < input.length; i += maxMessageSize) {
-    const data = input.subarray(i, i + maxMessageSize);
-    const inputLength = data.length;
-    await writer.ready;
-    await writer.write(data);
-    let readLength = 0;
-    do {
-      var {value, done} = await reader.read();
-      len += value.byteLength;
-      readLength += value.byteLength;
-    } while (readLength < inputLength);
-  }
-  return len;
+  let result2 = "";
+  await writer.ready;
+  await writer.write(input);
+  await socket.bufferedAmountLow();
+  await scheduler.postTask(() => Promise.all([writer.close(), writer.closed]), {
+    delay: 300
+  }, );
+  return reader.read().then(async function read({
+    value,
+    done
+  }) {
+    if (done) {
+      return result2;
+    }
+    result2 += decoder.decode(value);
+    return reader.read().then(read);
+  });
 }
+var result = await stream(encoder.encode(`So we need people to have weird new
+ideas ... we need more ideas to break it
+and make it better ...
 
-var binaryResult = await stream(new Uint8Array(1024 ** 2 * 20)).catch( (e) => e);
+Use it. Break it. File bugs. Request features.
 
-console.log({
-  binaryResult,
+- Soledad Penadés, Real time front-end alchemy, or: capturing, playing,
+  altering and encoding video and audio streams, without
+  servers or plugins!
+`, )).catch((e) => e);
+
+console.log(result);
+reader.releaseLock();
+writer.releaseLock();
+```
+
+### Make HTTP request over TCP to github.com, read raw HTTP headers and HTML response
+
+```
+var socket = new DirectSockets({
+  protocol: "tcp",
+  address: "guest271314.github.io",
+  port: 80,
 });
+
+var result = await stream(
+  encoder
+  .encode("GET / HTTP/1.1\r\n\Host:guest271314.github.io\r\n\r\n")
+).catch( (e) => e);
+
+console.log(result);
+reader.releaseLock();
+writer.releaseLock();
+```
+
+### Send message to remote UDP address, read message back
+
+```
+var socket = new DirectSockets({
+  protocol: "udp",
+  address: "52.43.121.77",
+  port: 10001,
+});
+
+var result = await stream(encoder.encode(`von Braun believed in testing. I cannot
+emphasize that term enough – test, test,
+test. Test to the point it breaks.
+
+- Ed Buckbee, NASA Public Affairs Officer, Chasing the Moon`)).catch( (e) => e);
+
+console.log(result);
+reader.releaseLock();
+writer.releaseLock();
+```
+
+### Close socket early, handle rejected Promises
+
+```
+var socket = new DirectSockets({
+  protocol: "udp",
+  address: "52.43.121.77",
+  port: 10001,
+});
+console.log(socket);
+socket.closed.then( (args) => console.log("socket closed", args, socket.options.readyState)).catch( (e) => console.log("socket closed reject", e, socket.options.readyState));
+// Early close
+socket.close(); // returns undefined
+// ...
+var p = await socket.opened.catch( (e) => {
+  console.log("socket opened reject", e);
+}
+);
+console.log(p);
+```
+### Close socket later
+```
+{
+  // ...
+  var result = await stream(await new Response(_readable).bytes()).catch((e) => e);
+
+  console.log(result);
+  reader.releaseLock();
+  writer.releaseLock();
+}
+socket.close();
 ```
 
 ## License
