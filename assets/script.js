@@ -71,7 +71,11 @@ onload = async () => {
         remotePort: options.port
       });
     } else if (options.protocol === "tcp") {
-      globalThis.socket = new TCPSocket(address, port, { noDelay: true, keepAliveDelay: 60 * 60 * 24 * 1000 });
+      globalThis.socket = new TCPSocket(
+        options.address, 
+        options.port, 
+        { noDelay: true, keepAliveDelay: 60 * 60 * 24 * 1000 }
+      );
     }
     globalThis.stream = await socket.opened;
     globalThis.readable = stream.readable;
