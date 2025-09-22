@@ -120,6 +120,16 @@ To avoid mixed-content UI warning launch with
 chrome --unsafely-treat-insecure-origin-as-secure=http://0.0.0.0:44819
 ```
 
+To avoid Chromium rendering insecure connection notification in the address bar, and to disable this https://github.com/WICG/local-network-access (which blocks `WebSocket` requests to `localhost` 
+on Chromium Version 142.0.7401.0 (Developer Build) (64-bit)).
+
+```
+--disable-features=LocalNetworkAccessChecks,LocalWebApprovals,LocalNetworkAccessChecksWebSockets
+```
+
+
+
+
 In an arbitrary window, for example, in `console` and Snippets in DevTools, or script imported, or script injected by Web extension, execute the script `direct-socket-controller-streams.js` in the `direct-sockets` Web extension forlder, which communicates with IWA to local (or remote) `TCPSocket` back to Web page with WebRTC 
 
 ```
