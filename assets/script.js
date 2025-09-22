@@ -1,37 +1,31 @@
 // https://codereview.stackexchange.com/a/297492/47730
+document.title = "TCPSocket";
 function splitHeadersAndBody(raw) {
-  for (let i = 0; i < raw.length - 3; i++) {
-    if (
-      raw[i] === 13 && // \r
-      raw[i + 1] === 10 && // \n
-      raw[i + 2] === 13 && // \r
-      raw[i + 3] === 10 // \n
-    ) {
+  for (let i = 0;i < raw.length - 3; i++) {
+    if (raw[i] === 13 && raw[i + 1] === 10 && raw[i + 2] === 13 && raw[i + 3] === 10) {
       const headerEnd = i + 4;
       return [
-        raw.subarray(0, headerEnd), // headers
-        raw.subarray(headerEnd), // body
+        raw.subarray(0, headerEnd),
+        raw.subarray(headerEnd)
       ];
     }
   }
   throw new Error("No header/body boundary found");
 }
-
+onmessage = async (e) => {
+  console.log(e);
+};
 onload = async () => {
-  document.title = "TCPSocket";
-  const USER_AGENT = "";
-  console.log(USER_AGENT);
+  const USER_AGENT = "Built with Bun/1.2.23";
   resizeTo(300, 200);
-  globalThis.encoder = new TextEncoder();
-  globalThis.decoder = new TextDecoder();
-
+  globalThis.encoder = new TextEncoder;
+  globalThis.decoder = new TextDecoder;
   function encode(text) {
     return encoder.encode(text);
   }
-
-  globalThis.abortable = new AbortController();
+  globalThis.abortable = new AbortController;
   const {
-    signal,
+    signal
   } = abortable;
   globalThis.signal = signal;
   globalThis.handle = null;
@@ -47,245 +41,184 @@ onload = async () => {
     sdpSemantics: "unified-plan",
     iceServers: []
   });
-  [
-    "signalingstatechange",
-    "iceconnectionstatechange",
-    "icegatheringstatechange",
-  ].forEach((e) => local.addEventListener(e, console.log));
-
+  let { resolve: resolveDataChannel, promise: resolveDataChannelPromise } = Promise.withResolvers();
   local.onicecandidate = async ({
-    candidate,
+    candidate
   }) => {
     if (!candidate) {
       try {
-        console.log("sdp:", local.localDescription.toJSON());
         resolve(local.localDescription.sdp);
-
         await scheduler.postTask(() => {}, {
           delay: 350,
-          priority: "user-visible",
+          priority: "user-visible"
         });
-
-        try {
-          globalThis.socket = new TCPSocket("0.0.0.0", "8000");
-          globalThis.stream = await socket.opened;
-          globalThis.readable = stream.readable;
-          console.log(socket);
-        } catch (e) {
-          console.log(e);
-        }
-        const { localAddress, localPort, remoteAddress, remotePort } =
-          globalThis.stream;
-        document.body.insertAdjacentHTML(
-          "afterbegin",
-          `<pre>${
-            JSON.stringify(
-              { localAddress, localPort, remoteAddress, remotePort },
-              null,
-              2,
-            )
-          }`,
-        );
-        globalThis.writable = stream.writable;
-        globalThis.writer = writable.getWriter();
-        globalThis.socket.closed.then(() => console.log("Socket closed"))
-          .catch(() => console.warn("Socket error"));
-        globalThis.readable.pipeTo(
-          new WritableStream({
-            start(controller) {
-              console.log("Starting TCPSocket stream.");
-            },
-            write(value) {
-              globalThis.channel.send(value);
-            },
-            close() {
-              console.log("TCPSocket closed");
-            },
-            abort(reason) {
-              console.log({
-                reason,
-              });
-            },
-          }),
-          {
-            signal,
-          },
-        ).then(() => console.log("TCPSocket pipe closed")).catch((e) =>
-          console.log(e)
-        );
       } catch (e) {
         console.error(e);
       }
     }
   };
-  channel = local.createDataChannel("transfer", {
-    negotiated: true,
-    ordered: true,
-    id: 0,
-    binaryType: "arraybuffer",
-    protocol: "tcp",
-  });
-
   let readableController;
   let writableController;
   let channelReadable;
   let channelWritable;
-
-  channel.onopen = async (e) => {
-    console.log(e.type, e.target);
-
+  local.ondatachannel = async (e) => {
+    channel = e.channel;
+    const options = JSON.parse(channel.label);
+    console.log(options);
+    if (options.protocol === "udp") {
+      globalThis.socket = new UDPSocket({
+        remoteAddress: options.address,
+        remotePort: options.port
+      });
+    } else if (options.protocol === "tcp") {
+      globalThis.socket = new TCPSocket(address, port, { noDelay: true, keepAliveDelay: 60 * 60 * 24 * 1000 });
+    }
+    globalThis.stream = await socket.opened;
+    globalThis.readable = stream.readable;
+    const socketType = globalThis.socket.constructor.name;
+    const { localAddress: localAddress2, localPort: localPort2, remoteAddress, remotePort } = globalThis.stream;
+    document.body.insertAdjacentHTML("afterbegin", `<pre>${JSON.stringify({ localAddress: localAddress2, localPort: localPort2, remoteAddress, remotePort }, null, 2)}`);
+    globalThis.writable = stream.writable;
+    globalThis.writer = writable.getWriter();
+    globalThis.socket.closed.then(() => console.log("Socket closed")).catch(() => console.warn("Socket error"));
+    globalThis.readable.pipeTo(new WritableStream({
+      start(controller) {
+        console.log(`Starting ${socketType} stream.`);
+      },
+      async write(value) {
+        await new Response(value?.data || value).body.pipeTo(channelWritable, { preventClose: true });
+      },
+      close() {
+        console.log(`${socketType} closed`);
+      },
+      abort(reason) {
+        console.log({
+          reason
+        });
+      }
+    }), {
+      signal
+    }).then(() => console.log(`${socketType} pipe closed`)).catch((e2) => console.log(e2));
     channelReadable = new ReadableStream({
       start(_) {
         return readableController = _;
       },
-      cancel(reason) {
-        console.log(reason);
-      },
+      cancel(reason) {}
     });
-
     channelWritable = new WritableStream({
       start(_) {
         return writableController = _;
       },
       write(v) {
-        console.log(v);
         channel.send(v);
       },
       close() {
-        console.log("channelWritable close");
         channel.close();
       },
-      abort(reason) {
-        console.log(reason);
-      },
+      abort(reason) {}
     });
-
-    channelReadable.pipeTo(
-      new WritableStream({
-        async write(v) {
-          await writer.write(v).catch(console.log);
-        },
-        close() {
-          console.log("channelReadable close");
-        }
-      }),
-    ).catch(() => channel.close());
+    channelReadable.pipeTo(new WritableStream({
+      async write(data) {
+        await writer.write(globalThis.socket instanceof UDPSocket ? { data } : data).catch(console.log);
+      }
+    })).catch(() => channel.close());
+    channel.onclose = async (e2) => {
+      await Promise.allSettled([
+        channelReadable.cancel(),
+        channelWritable.close()
+      ]).then(() => {}).catch(console.log);
+      local.close();
+      await writer.close().catch(console.log);
+      abortable.abort("reason");
+      close();
+    };
+    channel.onclosing = async (e2) => {};
+    channel.onbufferedamountlow = (e2) => {};
+    channel.onerror = async (e2) => {
+      await Promise.allSettled([
+        channelReadable.cancel(),
+        channelWritable.close()
+      ]).then(() => {}).catch(console.log);
+    };
+    channel.onmessage = async (e2) => {
+      readableController.enqueue(e2.data);
+    };
   };
-
-  channel.onclose = async (e) => {
-    console.log(e.type, e.target);
-    await Promise.allSettled([
-      channelReadable.cancel(),
-      channelWritable.close(),
-    ])
-      .then(() => console.log("Data Channel stream closed")).catch(console.log);
-    local.close();
-    await writer.close().catch(console.log);
-    abortable.abort("reason");
-    close();
-  };
-
-  channel.onclosing = async (e) => {
-    console.log(e.type);
-  };
-
-  channel.onbufferedamountlow = (e) => {
-    // console.log(e.type, channel.bufferedAmount);
-  };
-
-  channel.onerror = async (e) => {
-    console.log(e.type, e.target);
-    await Promise.allSettled([
-      channelReadable.cancel(),
-      channelWritable.close(),
-    ]).then(() => console.log("Data Channel stream closed"))
-      .catch(console.log);
-  };
-
-  channel.onmessage = (e) => {
-    readableController.enqueue(e.data);
-  };
-
   const serverSocket = new TCPServerSocket("0.0.0.0", {
-    localPort: 44819,
+    localPort: 44819
   });
-
   const {
     readable: server,
     localAddress,
-    localPort,
+    localPort
   } = await serverSocket.opened;
   let requests = 0;
   console.log({
-    server,
+    server
   });
-
   for await (const connection of server) {
     const {
       readable: client,
-      writable,
+      writable: writable2,
       remoteAddress,
-      remotePort,
+      remotePort
     } = await connection.opened;
     console.log({
-      connection,
+      connection
     });
     console.log({
       localAddress,
       localPort,
       remoteAddress,
-      remotePort,
+      remotePort
     });
-
-    const signalingWriter = writable.getWriter();
+    const signalingWriter = writable2.getWriter();
     for await (const request of client) {
       const requestText = decoder.decode(request);
       if (/^OPTIONS/.test(requestText)) {
-        await signalingWriter.write(
-          encode(
-            `HTTP/1.1 204 OK\r\n` +
-              `Access-Control-Allow-Origin: *\r\n` +
-              `Access-Control-Allow-Private-Network: true\r\n` +
-              `Access-Control-Allow-Headers: *\r\n\r\n`,
-          ),
-        );
+        await signalingWriter.write(encode(`HTTP/1.1 204 OK\r
+` + `Access-Control-Allow-Origin: *\r
+` + `Access-Control-Allow-Private-Network: true\r
+` + `Access-Control-Allow-Methods: *\r
+` + `Access-Control-Allow-Headers: *\r
+\r
+`));
         continue;
       }
       if (/^(POST|query)/i.test(requestText)) {
         const [, result] = splitHeadersAndBody(request);
         console.log({
           request,
-          result,
+          result
         });
-        await signalingWriter.write(
-          encode(
-            `HTTP/1.1 200 OK\r\n` +
-              `Content-Type: application/octet-stream\r\n` +
-              `Access-Control-Allow-Origin: *\r\n` +
-              `Access-Control-Allow-Private-Network: true\r\n` +
-              `Access-Control-Allow-Headers: *\r\n` +
-              `Cache-Control: no-cache\r\n` +
-              `Connection: close\r\n` +
-              `Transfer-Encoding: chunked\r\n\r\n`,
-          ),
-        );
-
-        const remoteSdp = decoder.decode(result);
-
+        await signalingWriter.write(encode(`HTTP/1.1 200 OK\r
+` + `Content-Type: application/octet-stream\r
+` + `Access-Control-Allow-Origin: *\r
+` + `Access-Control-Allow-Private-Network: true\r
+` + `Access-Control-Allow-Headers: *\r
+` + `Cache-Control: no-cache\r
+` + `Connection: close\r
+` + `Transfer-Encoding: chunked\r
+\r
+`));
+        const remoteSdp = decoder.decode(Uint8Array.from(result));
         await local.setRemoteDescription({
           type: "offer",
-          sdp: remoteSdp,
+          sdp: remoteSdp
         });
         await local.setLocalDescription(await local.createAnswer());
-
         const localSdp = await promise;
         const data = encoder.encode(localSdp);
         const size = data.buffer.byteLength.toString(16);
-        await signalingWriter.write(encode(`${size}\r\n`));
+        await signalingWriter.write(encode(`${size}\r
+`));
         await signalingWriter.write(data.buffer);
-        await signalingWriter.write(encode("\r\n"));
-        await signalingWriter.write(encode("0\r\n"));
-        await signalingWriter.write(encode("\r\n"));
+        await signalingWriter.write(encode(`\r
+`));
+        await signalingWriter.write(encode(`0\r
+`));
+        await signalingWriter.write(encode(`\r
+`));
         await signalingWriter.close();
         break;
       }
@@ -293,8 +226,5 @@ onload = async () => {
     }
     break;
   }
-
-  serverSocket.closed.then(() => {
-    console.log("TCPServerSocket closed", socket);
-  }).catch(console.warn);
+  serverSocket.closed.then(async () => {}).catch(console.warn);
 };
