@@ -38,23 +38,6 @@ TODO:
 - Full-duplex stream using WHATWG `fetch()` piped through `TCPSocket` and `UDPSocket`
 - Create Signed Web Bundle and Isolated Web App in the browser
 
-## Install dependencies
-
-```
-npm install
-```
-
-or
-
-```
-bun install
-```
-
-or use Deno for network imports and source code caching, and generating cryptographic keys for IWA
-
-```
-deno -A -c deno.json generateWebCryptoKeys.js
-```
 
 ## Generate cryptographic keys for IWA
 
