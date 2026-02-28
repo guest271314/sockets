@@ -1,3 +1,8 @@
+#!/usr/bin/env -S /home/user/bin/tjs run
+// txiki.js Native Messaging host
+// Direct Sockets TCPServerSocket, UDPSocket
+// guest271314
+
 if (!Object.hasOwn(globalThis, "process")) {
   if (navigator.userAgent.startsWith("txiki.js")) {
     Object.assign(globalThis, {
